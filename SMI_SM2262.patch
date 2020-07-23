@@ -1,0 +1,68 @@
+diff --git a/drivers/pci/pci.c b/drivers/pci/pci.c
+index ce096272f..aa1690822 100644
+--- a/drivers/pci/pci.c
++++ b/drivers/pci/pci.c
+@@ -4877,7 +4877,7 @@ int pci_bridge_secondary_bus_reset(struct pci_dev *dev)
+ }
+ EXPORT_SYMBOL_GPL(pci_bridge_secondary_bus_reset);
+ 
+-static int pci_parent_bus_reset(struct pci_dev *dev, int probe)
++int pci_parent_bus_reset(struct pci_dev *dev, int probe)
+ {
+ 	struct pci_dev *pdev;
+ 
+diff --git a/drivers/pci/pci.h b/drivers/pci/pci.h
+index 6d3f75867..41f0ca7d5 100644
+--- a/drivers/pci/pci.h
++++ b/drivers/pci/pci.h
+@@ -41,6 +41,7 @@ int pci_mmap_fits(struct pci_dev *pdev, int resno, struct vm_area_struct *vmai,
+ 
+ int pci_probe_reset_function(struct pci_dev *dev);
+ int pci_bridge_secondary_bus_reset(struct pci_dev *dev);
++int pci_parent_bus_reset(struct pci_dev *dev, int probe);
+ int pci_bus_error_reset(struct pci_dev *dev);
+ 
+ #define PCI_PM_D2_DELAY         200
+diff --git a/drivers/pci/quirks.c b/drivers/pci/quirks.c
+index 812bfc32e..082213788 100644
+--- a/drivers/pci/quirks.c
++++ b/drivers/pci/quirks.c
+@@ -3956,6 +3956,29 @@ static int delay_250ms_after_flr(struct pci_dev *dev, int probe)
+ 	return 0;
+ }
+ 
++/*
++ * The Silicon Motion SM2262 is an NVMe controller used by several vendors
++ * which is know to corrupt its MSI-X capability after FLR (PBA offset from
++ * the vector table only allows for 16 entries (0x100 offset) but after FLR
++ * the MSI-X capability reports 22 entries).  As this is a single function
++ * device, a bus reset should offer no significant loss of functionality
++ * versus FLR on this device.  Downstream ports blacklisting bus reset via
++ * PCI_DEV_FLAGS_NO_BUS_RESET will fall back to FLR as we have no workaround
++ * for them.
++ *
++ * Link: https://bugzilla.kernel.org/show_bug.cgi?id=202055
++ *
++ * This controller is known to be used in the Intel 760p (8086:f1a6) and
++ * ADATA XPG SX8200 (126f:2262), the latter making use of the native PCI
++ * vendor and device ID from Silicon Motion.  Also believed to be affected
++ * are the Mushkin Pilot, HP EX920, and Western Digital Black, though it's
++ * not known if any of these override the native device ID as Intel does.
++ */
++static int prefer_bus_reset(struct pci_dev *dev, int probe)
++{
++	return pci_parent_bus_reset(dev, probe);
++}
++
+ static const struct pci_dev_reset_methods pci_dev_reset_methods[] = {
+ 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82599_SFP_VF,
+ 		 reset_intel_82599_sfp_virtfn },
+@@ -3965,6 +3988,8 @@ static const struct pci_dev_reset_methods pci_dev_reset_methods[] = {
+ 		reset_ivb_igd },
+ 	{ PCI_VENDOR_ID_SAMSUNG, 0xa804, nvme_disable_and_flr },
+ 	{ PCI_VENDOR_ID_INTEL, 0x0953, delay_250ms_after_flr },
++	{ 0x126f, 0x2262, prefer_bus_reset },
++	{ PCI_VENDOR_ID_INTEL, 0xf1a6, prefer_bus_reset },
+ 	{ PCI_VENDOR_ID_CHELSIO, PCI_ANY_ID,
+ 		reset_chelsio_generic_dev },
+ 	{ 0 }
