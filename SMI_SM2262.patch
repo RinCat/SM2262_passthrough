@@ -1,33 +1,33 @@
 diff --git a/drivers/pci/pci.c b/drivers/pci/pci.c
-index aacf575c15cf..c91c6a2cf674 100644
+index a101faf3e88a..4c97d24bbb11 100644
 --- a/drivers/pci/pci.c
 +++ b/drivers/pci/pci.c
-@@ -4988,7 +4988,7 @@ int pci_bridge_secondary_bus_reset(struct pci_dev *dev)
+@@ -5015,7 +5015,7 @@ int pci_bridge_secondary_bus_reset(struct pci_dev *dev)
  }
  EXPORT_SYMBOL_GPL(pci_bridge_secondary_bus_reset);
  
--static int pci_parent_bus_reset(struct pci_dev *dev, int probe)
-+int pci_parent_bus_reset(struct pci_dev *dev, int probe)
+-static int pci_parent_bus_reset(struct pci_dev *dev, bool probe)
++int pci_parent_bus_reset(struct pci_dev *dev, bool probe)
  {
  	struct pci_dev *pdev;
  
 diff --git a/drivers/pci/pci.h b/drivers/pci/pci.h
-index 93dcdd431072..640d9d26837e 100644
+index 1cce56c2aea0..b11387d23274 100644
 --- a/drivers/pci/pci.h
 +++ b/drivers/pci/pci.h
-@@ -35,6 +35,7 @@ int pci_mmap_fits(struct pci_dev *pdev, int resno, struct vm_area_struct *vmai,
- 
- int pci_probe_reset_function(struct pci_dev *dev);
+@@ -36,6 +36,7 @@ int pci_mmap_fits(struct pci_dev *pdev, int resno, struct vm_area_struct *vmai,
+ bool pci_reset_supported(struct pci_dev *dev);
+ void pci_init_reset_methods(struct pci_dev *dev);
  int pci_bridge_secondary_bus_reset(struct pci_dev *dev);
-+int pci_parent_bus_reset(struct pci_dev *dev, int probe);
++int pci_parent_bus_reset(struct pci_dev *dev, bool probe);
  int pci_bus_error_reset(struct pci_dev *dev);
  
- #define PCI_PM_D2_DELAY         200	/* usec; see PCIe r4.0, sec 5.9.1 */
+ struct pci_cap_saved_data {
 diff --git a/drivers/pci/quirks.c b/drivers/pci/quirks.c
-index 6d74386eadc2..83c131e44f9d 100644
+index 7fdb7e9c2e12..450e516c6c32 100644
 --- a/drivers/pci/quirks.c
 +++ b/drivers/pci/quirks.c
-@@ -3997,6 +3997,29 @@ static int reset_hinic_vf_dev(struct pci_dev *pdev, int probe)
+@@ -4036,6 +4036,29 @@ static int reset_hinic_vf_dev(struct pci_dev *pdev, bool probe)
  	return 0;
  }
  
@@ -49,7 +49,7 @@ index 6d74386eadc2..83c131e44f9d 100644
 + * are the Mushkin Pilot, HP EX920, and Western Digital Black, though it's
 + * not known if any of these override the native device ID as Intel does.
 + */
-+static int prefer_bus_reset(struct pci_dev *dev, int probe)
++static int prefer_bus_reset(struct pci_dev *dev, bool probe)
 +{
 +	return pci_parent_bus_reset(dev, probe);
 +}
@@ -57,7 +57,7 @@ index 6d74386eadc2..83c131e44f9d 100644
  static const struct pci_dev_reset_methods pci_dev_reset_methods[] = {
  	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82599_SFP_VF,
  		 reset_intel_82599_sfp_virtfn },
-@@ -4007,6 +4030,8 @@ static const struct pci_dev_reset_methods pci_dev_reset_methods[] = {
+@@ -4046,6 +4069,8 @@ static const struct pci_dev_reset_methods pci_dev_reset_methods[] = {
  	{ PCI_VENDOR_ID_SAMSUNG, 0xa804, nvme_disable_and_flr },
  	{ PCI_VENDOR_ID_INTEL, 0x0953, delay_250ms_after_flr },
  	{ PCI_VENDOR_ID_INTEL, 0x0a54, delay_250ms_after_flr },
